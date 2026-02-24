@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Galaxy Watch Performance & Health Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+    <!-- Chart.js for simple visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="app-header-main">
+        <h1>Galaxy Watch Team Dashboard</h1>
+        <p class="subtitle">
+          Multi-role analytics for coaches, trainers, doctors, and athletes based on Galaxy 8 watch data.
+        </p>
+      </div>
+      <div class="app-header-meta">
+        <div class="role-switcher" aria-label="Select role">
+          <button class="role-btn active" data-role="coach">Coach</button>
+          <button class="role-btn" data-role="trainer">Trainer</button>
+          <button class="role-btn" data-role="doctor">Team Doctor</button>
+          <button class="role-btn" data-role="athlete">Athlete</button>
+        </div>
+        <div class="athlete-selector">
+          <label for="athleteSelect">Athlete</label>
+          <select id="athleteSelect">
+            <option value="alex" selected>Alex Rivera (Midfielder)</option>
+            <option value="jordan">Jordan Kim (Goalkeeper)</option>
+          </select>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <section class="data-source-panel">
+        <h2>Data source</h2>
+        <p class="hint">
+          By default, the dashboard uses built‑in sample CSVs for Alex and Jordan.
+          You can also upload a Galaxy 8 CSV export with the same columns.
+        </p>
+        <div class="upload-row">
+          <label class="file-upload">
+            <input type="file" id="csvUpload" accept=".csv" />
+            <span>Upload CSV for selected athlete</span>
+          </label>
+          <button id="reloadSampleBtn" class="secondary-btn">Reload sample data</button>
+        </div>
+        <div id="dataSummary" class="data-summary"></div>
+      </section>
+
+      <section id="doctorAlerts" class="alerts-panel hidden" aria-live="polite">
+        <h2>Medical alerts</h2>
+        <ul id="alertsList" class="alerts-list"></ul>
+      </section>
+
+      <section class="cards-grid" aria-label="Key metrics">
+        <article class="metric-card">
+          <h3>Activity load</h3>
+          <div class="metric-main">
+            <div>
+              <div class="metric-label">Total steps (day)</div>
+              <div id="stepsTotal" class="metric-value">–</div>
+            </div>
+            <div>
+              <div class="metric-label">Active minutes (day)</div>
+              <div id="activeMinutesTotal" class="metric-value">–</div>
+            </div>
+          </div>
+          <p id="activityNote" class="metric-note"></p>
+        </article>
+
+        <article class="metric-card">
+          <h3>Cardio & oxygen</h3>
+          <div class="metric-main">
+            <div>
+              <div class="metric-label">Avg heart rate</div>
+              <div id="avgHeartRate" class="metric-value">–</div>
+            </div>
+            <div>
+              <div class="metric-label">Avg SpO₂</div>
+              <div id="avgSpO2" class="metric-value">–</div>
+            </div>
+          </div>
+          <p id="cardioNote" class="metric-note"></p>
+        </article>
+
+        <article class="metric-card">
+          <h3>Sleep & recovery</h3>
+          <div class="metric-main">
+            <div>
+              <div class="metric-label">Deep sleep</div>
+              <div id="deepSleep" class="metric-value">–</div>
+            </div>
+            <div>
+              <div class="metric-label">Apnea events</div>
+              <div id="apneaEvents" class="metric-value">–</div>
+            </div>
+          </div>
+          <p id="sleepNote" class="metric-note"></p>
+        </article>
+
+        <article class="metric-card">
+          <h3>Body composition & readiness</h3>
+          <div class="metric-main">
+            <div>
+              <div class="metric-label">Body fat %</div>
+              <div id="bodyFat" class="metric-value">–</div>
+            </div>
+            <div>
+              <div class="metric-label">Energy score</div>
+              <div id="energyScore" class="metric-value">–</div>
+            </div>
+          </div>
+          <p id="bodyNote" class="metric-note"></p>
+        </article>
+
+        <article class="metric-card">
+          <h3>Stress & resilience</h3>
+          <div class="metric-main">
+            <div>
+              <div class="metric-label">Avg stress</div>
+              <div id="avgStress" class="metric-value">–</div>
+            </div>
+            <div>
+              <div class="metric-label">Antioxidant index</div>
+              <div id="antioxidantIndex" class="metric-value">–</div>
+            </div>
+          </div>
+          <p id="stressNote" class="metric-note"></p>
+        </article>
+
+        <article class="metric-card">
+          <h3>Blood pressure & ECG</h3>
+          <div class="metric-main">
+            <div>
+              <div class="metric-label">BP (sys / dia)</div>
+              <div id="bloodPressure" class="metric-value">–</div>
+            </div>
+            <div>
+              <div class="metric-label">ECG</div>
+              <div id="ecgStatus" class="metric-value">–</div>
+            </div>
+          </div>
+          <p id="bpNote" class="metric-note"></p>
+        </article>
+      </section>
+
+      <section class="charts-panel">
+        <article class="chart-card">
+          <header class="chart-header">
+            <h2>Heart rate trend</h2>
+            <span id="hrTrendLabel" class="chart-subtitle"></span>
+          </header>
+          <canvas id="heartRateChart" height="140"></canvas>
+        </article>
+        <article class="chart-card">
+          <header class="chart-header">
+            <h2>Sleep stage distribution</h2>
+            <span id="sleepDistLabel" class="chart-subtitle"></span>
+          </header>
+          <canvas id="sleepStageChart" height="140"></canvas>
+        </article>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <span>Galaxy Watch Team Dashboard – demo with synthetic data.</span>
+      <span>Optimized for desktop; works on tablet and mobile.</span>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+  </html>
+
