@@ -187,6 +187,16 @@ body {
   margin-top: 0.75rem;
 }
 
+.date-filter-row.comparison-row {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(55, 65, 81, 0.6);
+}
+
+.comparison-hint {
+  margin-top: 0.25rem;
+}
+
 .date-field {
   display: flex;
   flex-direction: column;
@@ -341,6 +351,12 @@ body {
   font-size: 1.2rem;
   font-weight: 600;
   margin-top: 0.1rem;
+  word-break: break-word;
+}
+
+.metric-value.comparison-active {
+  font-size: 0.95rem;
+  line-height: 1.35;
 }
 
 .metric-note {
@@ -438,3 +454,4 @@ body {
     align-items: flex-start;
   }
 }
+
