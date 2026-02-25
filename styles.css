@@ -354,9 +354,49 @@ body {
   word-break: break-word;
 }
 
-.metric-value.comparison-active {
-  font-size: 0.95rem;
-  line-height: 1.35;
+.metric-value.metric-value-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+}
+
+.metric-value-block .metric-avg {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.metric-value-block .metric-comp-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 400;
+  margin-top: 0.15rem;
+}
+
+.metric-value-block .metric-comp-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.metric-value-block .metric-comp-val {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.metric-value-block .metric-delta {
+  font-size: 0.85rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.metric-value-block .metric-delta-positive {
+  color: #22c55e;
+}
+
+.metric-value-block .metric-delta-negative {
+  color: #f87171;
 }
 
 .metric-note {
