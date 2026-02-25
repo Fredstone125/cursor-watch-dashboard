@@ -179,6 +179,37 @@ body {
   align-items: center;
 }
 
+.date-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+  margin-top: 0.75rem;
+}
+
+.date-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.date-field input[type="date"] {
+  background: rgba(15, 23, 42, 0.95);
+  border-radius: 999px;
+  border: 1px solid rgba(75, 85, 99, 0.8);
+  color: var(--text-main);
+  padding: 0.3rem 0.8rem;
+  font-size: 0.8rem;
+  outline: none;
+}
+
+.date-field input[type="date"]:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.7);
+}
+
 .file-upload {
   position: relative;
   overflow: hidden;
@@ -210,6 +241,11 @@ body {
   padding: 0.45rem 0.9rem;
   font-size: 0.8rem;
   cursor: pointer;
+}
+
+.secondary-btn.small {
+  padding: 0.35rem 0.8rem;
+  font-size: 0.78rem;
 }
 
 .secondary-btn:hover {
@@ -326,6 +362,13 @@ body {
   padding: 0.9rem 1rem 1.1rem;
   border: 1px solid rgba(55, 65, 81, 0.85);
   box-shadow: var(--shadow-soft);
+  position: relative;
+  height: 240px;
+}
+
+.chart-card canvas {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .chart-header {
@@ -395,4 +438,3 @@ body {
     align-items: flex-start;
   }
 }
-
