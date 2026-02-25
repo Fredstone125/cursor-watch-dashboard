@@ -47,6 +47,19 @@
           </label>
           <button id="reloadSampleBtn" class="secondary-btn">Reload sample data</button>
         </div>
+        <div class="date-filter-row">
+          <div class="date-field">
+            <label for="dateFrom">From date</label>
+            <input type="date" id="dateFrom" />
+          </div>
+          <div class="date-field">
+            <label for="dateTo">To date</label>
+            <input type="date" id="dateTo" />
+          </div>
+          <button id="clearDatesBtn" class="secondary-btn small" type="button">
+            All dates
+          </button>
+        </div>
         <div id="dataSummary" class="data-summary"></div>
       </section>
 
@@ -60,11 +73,11 @@
           <h3>Activity load</h3>
           <div class="metric-main">
             <div>
-              <div class="metric-label">Total steps (day)</div>
+              <div class="metric-label">Avg steps per day</div>
               <div id="stepsTotal" class="metric-value">–</div>
             </div>
             <div>
-              <div class="metric-label">Active minutes (day)</div>
+              <div class="metric-label">Avg active minutes per day</div>
               <div id="activeMinutesTotal" class="metric-value">–</div>
             </div>
           </div>
@@ -94,7 +107,7 @@
               <div id="deepSleep" class="metric-value">–</div>
             </div>
             <div>
-              <div class="metric-label">Apnea events</div>
+              <div class="metric-label">Avg apnea events per night</div>
               <div id="apneaEvents" class="metric-value">–</div>
             </div>
           </div>
@@ -153,14 +166,14 @@
             <h2>Heart rate trend</h2>
             <span id="hrTrendLabel" class="chart-subtitle"></span>
           </header>
-          <canvas id="heartRateChart" height="140"></canvas>
+          <canvas id="heartRateChart"></canvas>
         </article>
         <article class="chart-card">
           <header class="chart-header">
             <h2>Sleep stage distribution</h2>
             <span id="sleepDistLabel" class="chart-subtitle"></span>
           </header>
-          <canvas id="sleepStageChart" height="140"></canvas>
+          <canvas id="sleepStageChart"></canvas>
         </article>
       </section>
     </main>
@@ -173,4 +186,3 @@
     <script src="app.js"></script>
   </body>
   </html>
-
