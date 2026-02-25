@@ -72,20 +72,74 @@ function formatDateLabel(dateStr) {
   return `${mon} ${day}`;
 }
 
+function formatDateLabelForComparison(dateStr) {
+  const label = formatDateLabel(dateStr);
+  return label ? `${label}'s data` : "";
+}
+
 function getRecordsForDate(records, dateStr) {
   if (!dateStr || !records.length) return [];
   return records.filter((r) => getDatePart(r.timestamp) === dateStr);
 }
 
-function formatComparisonDisplay(avg, compVal, unit, digits, dateLabel) {
-  if (avg == null || compVal == null || dateLabel == null) return null;
-  const avgNum = Number(avg);
-  const compNum = Number(compVal);
-  const delta = compNum - avgNum;
-  const deltaStr = delta >= 0 ? `+${delta.toFixed(digits)}` : String(delta.toFixed(digits));
-  const avgStr = unit ? `${avgNum.toFixed(digits)} ${unit}` : String(Math.round(avgNum));
-  const compStr = unit ? `${compNum.toFixed(digits)} ${unit}` : String(Math.round(compNum));
-  return `${avgStr} ${compStr} ${dateLabel} ${deltaStr}`;
+function buildMetricHTML(avg, compVal, unit, digits, dateLabel, showComparison, skipDelta) {
+  const avgStr = avg != null
+    ? (typeof avg === "number"
+        ? (unit ? `${Number(avg).toFixed(digits)} ${unit}` : String(Math.round(avg)))
+        : String(avg))
+    : "–";
+  if (!showComparison || compVal == null || !dateLabel) {
+    return `<span class="metric-avg">${avgStr}</span>`;
+  }
+  const compLabel = formatDateLabelForComparison(dateLabel);
+  let compStr, deltaStr, deltaClass;
+  if (skipDelta) {
+    compStr = String(compVal);
+    deltaStr = "";
+    deltaClass = "";
+  } else {
+    const compNum = Number(compVal);
+    const avgNum = Number(avg);
+    const delta = compNum - avgNum;
+    deltaStr = delta >= 0 ? `+${delta.toFixed(digits)}` : String(delta.toFixed(digits));
+    deltaClass = delta >= 0 ? " metric-delta-positive" : " metric-delta-negative";
+    compStr = unit ? `${compNum.toFixed(digits)} ${unit}` : String(Math.round(compNum));
+  }
+  const deltaPart = deltaStr ? ` <span class="metric-delta${deltaClass || ""}">${deltaStr}</span>` : "";
+  return `
+    <span class="metric-avg">${avgStr}</span>
+    <div class="metric-comp-label">${compLabel}</div>
+    <div class="metric-comp-row">
+      <span class="metric-comp-val">${compStr}</span>${deltaPart}
+    </div>
+  `;
+}
+
+function buildBpMetricHTML(avgSys, avgDia, compSys, compDia, dateLabel, showComparison) {
+  const avgStr = avgSys != null && avgDia != null
+    ? `${Math.round(avgSys)}/${Math.round(avgDia)} mmHg`
+    : "–";
+  if (!showComparison || compSys == null || compDia == null || !dateLabel) {
+    return `<span class="metric-avg">${avgStr}</span>`;
+  }
+  const compStr = `${Math.round(compSys)}/${Math.round(compDia)} mmHg`;
+  const dSys = compSys - avgSys;
+  const dDia = compDia - avgDia;
+  const dSysStr = dSys >= 0 ? `+${dSys}` : String(dSys);
+  const dDiaStr = dDia >= 0 ? `+${dDia}` : String(dDia);
+  const deltaStr = `${dSysStr}/${dDiaStr}`;
+  const isPositive = dSys >= 0 && dDia >= 0;
+  const isNegative = dSys < 0 || dDia < 0;
+  const deltaClass = isPositive ? " metric-delta-positive" : (isNegative ? " metric-delta-negative" : "");
+  const compLabel = formatDateLabelForComparison(dateLabel);
+  return `
+    <span class="metric-avg">${avgStr}</span>
+    <div class="metric-comp-label">${compLabel}</div>
+    <div class="metric-comp-row">
+      <span class="metric-comp-val">${compStr}</span>
+      <span class="metric-delta${deltaClass}">${deltaStr}</span>
+    </div>
+  `;
 }
 
 function parseCsv(text) {
@@ -235,7 +289,11 @@ function renderCards(records) {
       "bloodPressure",
       "ecgStatus",
     ].forEach((id) => {
-      $(id).textContent = "–";
+      const el = $(id);
+      if (el) {
+        el.textContent = "–";
+        el.classList.remove("metric-value-block");
+      }
     });
     return;
   }
@@ -247,38 +305,38 @@ function renderCards(records) {
   const dateLabel = compDate ? formatDateLabel(compDate) : null;
   const showComparison = compSummary && dateLabel;
 
-  ["stepsTotal", "activeMinutesTotal", "avgHeartRate", "avgSpO2", "deepSleep",
-    "apneaEvents", "bodyFat", "energyScore", "avgStress", "antioxidantIndex",
-    "bloodPressure", "ecgStatus"
-  ].forEach((id) => {
-    const el = $(id);
-    if (el) el.classList.toggle("comparison-active", !!showComparison);
-  });
-
   const avgSteps = summary.avgStepsPerDay ?? summary.totalSteps;
   const avgActiveMin = summary.avgActiveMinutesPerDay ?? summary.totalActiveMinutes;
   const compSteps = compSummary?.avgStepsPerDay ?? compSummary?.totalSteps;
   const compActiveMin = compSummary?.avgActiveMinutesPerDay ?? compSummary?.totalActiveMinutes;
 
-  $("stepsTotal").textContent = showComparison && avgSteps != null && compSteps != null
-    ? formatComparisonDisplay(avgSteps, compSteps, "", 0, dateLabel)
-    : fmt(avgSteps, "", 0);
+  $("stepsTotal").innerHTML = buildMetricHTML(
+    avgSteps, compSteps, "", 0, dateLabel,
+    showComparison && avgSteps != null && compSteps != null
+  );
+  $("stepsTotal").classList.toggle("metric-value-block", !!showComparison);
 
-  $("activeMinutesTotal").textContent = showComparison && avgActiveMin != null && compActiveMin != null
-    ? formatComparisonDisplay(avgActiveMin, compActiveMin, "min", 0, dateLabel)
-    : fmt(avgActiveMin, "min", 0);
+  $("activeMinutesTotal").innerHTML = buildMetricHTML(
+    avgActiveMin, compActiveMin, "min", 0, dateLabel,
+    showComparison && avgActiveMin != null && compActiveMin != null
+  );
+  $("activeMinutesTotal").classList.toggle("metric-value-block", !!showComparison);
 
   const avgHr = summary.avgHeartRate;
   const compHr = compSummary?.avgHeartRate;
-  $("avgHeartRate").textContent = showComparison && avgHr != null && compHr != null
-    ? formatComparisonDisplay(avgHr, compHr, "bpm", 0, dateLabel)
-    : fmt(avgHr, "bpm", 0);
+  $("avgHeartRate").innerHTML = buildMetricHTML(
+    avgHr, compHr, "bpm", 0, dateLabel,
+    showComparison && avgHr != null && compHr != null
+  );
+  $("avgHeartRate").classList.toggle("metric-value-block", !!showComparison);
 
   const avgSpO2 = summary.avgSpO2;
   const compSpO2 = compSummary?.avgSpO2;
-  $("avgSpO2").textContent = showComparison && avgSpO2 != null && compSpO2 != null
-    ? formatComparisonDisplay(avgSpO2, compSpO2, "%", 1, dateLabel)
-    : fmt(avgSpO2, "%", 1);
+  $("avgSpO2").innerHTML = buildMetricHTML(
+    avgSpO2, compSpO2, "%", 1, dateLabel,
+    showComparison && avgSpO2 != null && compSpO2 != null
+  );
+  $("avgSpO2").classList.toggle("metric-value-block", !!showComparison);
 
   const deepCount = summary.sleepStageCounts["deep"] || 0;
   const totalSleep = Object.values(summary.sleepStageCounts).reduce(
@@ -294,63 +352,70 @@ function renderCards(records) {
   );
   const compDeepPct = compTotalSleep > 0 ? (compDeepCount / compTotalSleep) * 100 : null;
 
-  $("deepSleep").textContent = showComparison && deepPct != null && compDeepPct != null
-    ? formatComparisonDisplay(deepPct, compDeepPct, "%", 0, dateLabel)
-    : fmt(deepPct, "%", 0);
+  $("deepSleep").innerHTML = buildMetricHTML(
+    deepPct, compDeepPct, "%", 0, dateLabel,
+    showComparison && deepPct != null && compDeepPct != null
+  );
+  $("deepSleep").classList.toggle("metric-value-block", !!showComparison);
 
   const avgApnea = summary.avgApneaPerNight ?? summary.apneaEvents;
   const compApnea = compSummary?.avgApneaPerNight ?? compSummary?.apneaEvents;
-  $("apneaEvents").textContent = showComparison && avgApnea != null && compApnea != null
-    ? formatComparisonDisplay(avgApnea, compApnea, "", 1, dateLabel)
-    : fmt(avgApnea, "", 1);
+  $("apneaEvents").innerHTML = buildMetricHTML(
+    avgApnea, compApnea, "", 1, dateLabel,
+    showComparison && avgApnea != null && compApnea != null
+  );
+  $("apneaEvents").classList.toggle("metric-value-block", !!showComparison);
 
   const avgBodyFat = latest.body_fat_pct;
   const compBodyFat = compSummary?.latest?.body_fat_pct;
-  $("bodyFat").textContent = showComparison && avgBodyFat != null && compBodyFat != null
-    ? formatComparisonDisplay(avgBodyFat, compBodyFat, "%", 1, dateLabel)
-    : fmt(avgBodyFat, "%", 1);
+  $("bodyFat").innerHTML = buildMetricHTML(
+    avgBodyFat, compBodyFat, "%", 1, dateLabel,
+    showComparison && avgBodyFat != null && compBodyFat != null
+  );
+  $("bodyFat").classList.toggle("metric-value-block", !!showComparison);
 
   const avgEnergy = latest.energy_score ?? summary.avgEnergy;
   const compEnergy = compSummary?.latest?.energy_score ?? compSummary?.avgEnergy;
-  $("energyScore").textContent = showComparison && avgEnergy != null && compEnergy != null
-    ? formatComparisonDisplay(avgEnergy, compEnergy, "/100", 0, dateLabel)
-    : fmt(avgEnergy, "/100", 0);
+  $("energyScore").innerHTML = buildMetricHTML(
+    avgEnergy, compEnergy, "/100", 0, dateLabel,
+    showComparison && avgEnergy != null && compEnergy != null
+  );
+  $("energyScore").classList.toggle("metric-value-block", !!showComparison);
 
   const avgStress = summary.avgStress;
   const compStress = compSummary?.avgStress;
-  $("avgStress").textContent = showComparison && avgStress != null && compStress != null
-    ? formatComparisonDisplay(avgStress, compStress, "/100", 0, dateLabel)
-    : fmt(avgStress, "/100", 0);
+  $("avgStress").innerHTML = buildMetricHTML(
+    avgStress, compStress, "/100", 0, dateLabel,
+    showComparison && avgStress != null && compStress != null
+  );
+  $("avgStress").classList.toggle("metric-value-block", !!showComparison);
 
   const avgAntiox = latest.antioxidant_index ?? summary.avgAntioxidant;
   const compAntiox = compSummary?.latest?.antioxidant_index ?? compSummary?.avgAntioxidant;
-  $("antioxidantIndex").textContent = showComparison && avgAntiox != null && compAntiox != null
-    ? formatComparisonDisplay(avgAntiox, compAntiox, "/100", 0, dateLabel)
-    : fmt(avgAntiox, "/100", 0);
+  $("antioxidantIndex").innerHTML = buildMetricHTML(
+    avgAntiox, compAntiox, "/100", 0, dateLabel,
+    showComparison && avgAntiox != null && compAntiox != null
+  );
+  $("antioxidantIndex").classList.toggle("metric-value-block", !!showComparison);
 
   const avgSys = latest.systolic_bp;
   const avgDia = latest.diastolic_bp;
   const compSys = compSummary?.latest?.systolic_bp;
   const compDia = compSummary?.latest?.diastolic_bp;
-  if (showComparison && avgSys != null && avgDia != null && compSys != null && compDia != null) {
-    const dSys = compSys - avgSys;
-    const dDia = compDia - avgDia;
-    const dSysStr = dSys >= 0 ? `+${dSys}` : String(dSys);
-    const dDiaStr = dDia >= 0 ? `+${dDia}` : String(dDia);
-    $("bloodPressure").textContent =
-      `${avgSys}/${avgDia} ${compSys}/${compDia} ${dateLabel} ${dSysStr}/${dDiaStr} mmHg`;
-  } else if (avgSys != null && avgDia != null) {
-    $("bloodPressure").textContent = `${fmt(avgSys, "", 0)} / ${fmt(avgDia, "", 0)} mmHg`;
-  } else {
-    $("bloodPressure").textContent = "–";
-  }
+  $("bloodPressure").innerHTML = buildBpMetricHTML(
+    avgSys, avgDia, compSys, compDia, dateLabel,
+    showComparison && avgSys != null && avgDia != null && compSys != null && compDia != null
+  );
+  $("bloodPressure").classList.toggle("metric-value-block", !!showComparison);
 
   const rangeEcg = latest.ecg && latest.ecg.toLowerCase() !== "normal" ? latest.ecg : "Normal";
   const compEcg = compSummary?.latest?.ecg;
-  $("ecgStatus").textContent =
-    showComparison && compEcg
-      ? `${rangeEcg} ${compEcg} ${dateLabel}` + (rangeEcg !== compEcg ? " (changed)" : "")
-      : rangeEcg;
+  $("ecgStatus").innerHTML = buildMetricHTML(
+    rangeEcg, compEcg, "", 0, dateLabel,
+    showComparison && compEcg,
+    true
+  );
+  $("ecgStatus").classList.toggle("metric-value-block", !!showComparison && !!compEcg);
 
   renderRoleNotes(summary);
 }
