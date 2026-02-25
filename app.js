@@ -64,9 +64,10 @@ function getTodayStr() {
 }
 
 function formatDateLabel(dateStr) {
-  if (!dateStr) return "";
+  if (!dateStr || typeof dateStr !== "string") return "";
   if (dateStr === getTodayStr()) return "today";
   const d = new Date(dateStr + "T12:00:00");
+  if (Number.isNaN(d.getTime())) return dateStr;
   const mon = d.toLocaleString("en", { month: "short" });
   const day = d.getDate();
   return `${mon} ${day}`;
@@ -82,16 +83,16 @@ function getRecordsForDate(records, dateStr) {
   return records.filter((r) => getDatePart(r.timestamp) === dateStr);
 }
 
-function buildMetricHTML(avg, compVal, unit, digits, dateLabel, showComparison, skipDelta) {
+function buildMetricHTML(avg, compVal, unit, digits, compDate, showComparison, skipDelta) {
   const avgStr = avg != null
     ? (typeof avg === "number"
         ? (unit ? `${Number(avg).toFixed(digits)} ${unit}` : String(Math.round(avg)))
         : String(avg))
     : "–";
-  if (!showComparison || compVal == null || !dateLabel) {
+  if (!showComparison || compVal == null || !compDate) {
     return `<span class="metric-avg">${avgStr}</span>`;
   }
-  const compLabel = formatDateLabelForComparison(dateLabel);
+  const compLabel = formatDateLabelForComparison(compDate);
   let compStr, deltaStr, deltaClass;
   if (skipDelta) {
     compStr = String(compVal);
@@ -115,11 +116,11 @@ function buildMetricHTML(avg, compVal, unit, digits, dateLabel, showComparison, 
   `;
 }
 
-function buildBpMetricHTML(avgSys, avgDia, compSys, compDia, dateLabel, showComparison) {
+function buildBpMetricHTML(avgSys, avgDia, compSys, compDia, compDate, showComparison) {
   const avgStr = avgSys != null && avgDia != null
     ? `${Math.round(avgSys)}/${Math.round(avgDia)} mmHg`
     : "–";
-  if (!showComparison || compSys == null || compDia == null || !dateLabel) {
+  if (!showComparison || compSys == null || compDia == null || !compDate) {
     return `<span class="metric-avg">${avgStr}</span>`;
   }
   const compStr = `${Math.round(compSys)}/${Math.round(compDia)} mmHg`;
@@ -131,7 +132,7 @@ function buildBpMetricHTML(avgSys, avgDia, compSys, compDia, dateLabel, showComp
   const isPositive = dSys >= 0 && dDia >= 0;
   const isNegative = dSys < 0 || dDia < 0;
   const deltaClass = isPositive ? " metric-delta-positive" : (isNegative ? " metric-delta-negative" : "");
-  const compLabel = formatDateLabelForComparison(dateLabel);
+  const compLabel = formatDateLabelForComparison(compDate);
   return `
     <span class="metric-avg">${avgStr}</span>
     <div class="metric-comp-label">${compLabel}</div>
@@ -300,10 +301,10 @@ function renderCards(records) {
 
   const { latest } = summary;
   const compDate = state.comparisonDate;
-  const compRecords = compDate ? getRecordsForDate(records, compDate) : [];
+  const allRecords = state.allRecords || records;
+  const compRecords = compDate ? getRecordsForDate(allRecords, compDate) : [];
   const compSummary = compRecords.length ? summarize(compRecords) : null;
-  const dateLabel = compDate ? formatDateLabel(compDate) : null;
-  const showComparison = compSummary && dateLabel;
+  const showComparison = compSummary && compDate;
 
   const avgSteps = summary.avgStepsPerDay ?? summary.totalSteps;
   const avgActiveMin = summary.avgActiveMinutesPerDay ?? summary.totalActiveMinutes;
@@ -311,13 +312,13 @@ function renderCards(records) {
   const compActiveMin = compSummary?.avgActiveMinutesPerDay ?? compSummary?.totalActiveMinutes;
 
   $("stepsTotal").innerHTML = buildMetricHTML(
-    avgSteps, compSteps, "", 0, dateLabel,
+    avgSteps, compSteps, "", 0, compDate,
     showComparison && avgSteps != null && compSteps != null
   );
   $("stepsTotal").classList.toggle("metric-value-block", !!showComparison);
 
   $("activeMinutesTotal").innerHTML = buildMetricHTML(
-    avgActiveMin, compActiveMin, "min", 0, dateLabel,
+    avgActiveMin, compActiveMin, "min", 0, compDate,
     showComparison && avgActiveMin != null && compActiveMin != null
   );
   $("activeMinutesTotal").classList.toggle("metric-value-block", !!showComparison);
@@ -325,7 +326,7 @@ function renderCards(records) {
   const avgHr = summary.avgHeartRate;
   const compHr = compSummary?.avgHeartRate;
   $("avgHeartRate").innerHTML = buildMetricHTML(
-    avgHr, compHr, "bpm", 0, dateLabel,
+    avgHr, compHr, "bpm", 0, compDate,
     showComparison && avgHr != null && compHr != null
   );
   $("avgHeartRate").classList.toggle("metric-value-block", !!showComparison);
@@ -333,7 +334,7 @@ function renderCards(records) {
   const avgSpO2 = summary.avgSpO2;
   const compSpO2 = compSummary?.avgSpO2;
   $("avgSpO2").innerHTML = buildMetricHTML(
-    avgSpO2, compSpO2, "%", 1, dateLabel,
+    avgSpO2, compSpO2, "%", 1, compDate,
     showComparison && avgSpO2 != null && compSpO2 != null
   );
   $("avgSpO2").classList.toggle("metric-value-block", !!showComparison);
@@ -353,7 +354,7 @@ function renderCards(records) {
   const compDeepPct = compTotalSleep > 0 ? (compDeepCount / compTotalSleep) * 100 : null;
 
   $("deepSleep").innerHTML = buildMetricHTML(
-    deepPct, compDeepPct, "%", 0, dateLabel,
+    deepPct, compDeepPct, "%", 0, compDate,
     showComparison && deepPct != null && compDeepPct != null
   );
   $("deepSleep").classList.toggle("metric-value-block", !!showComparison);
@@ -361,7 +362,7 @@ function renderCards(records) {
   const avgApnea = summary.avgApneaPerNight ?? summary.apneaEvents;
   const compApnea = compSummary?.avgApneaPerNight ?? compSummary?.apneaEvents;
   $("apneaEvents").innerHTML = buildMetricHTML(
-    avgApnea, compApnea, "", 1, dateLabel,
+    avgApnea, compApnea, "", 1, compDate,
     showComparison && avgApnea != null && compApnea != null
   );
   $("apneaEvents").classList.toggle("metric-value-block", !!showComparison);
@@ -369,7 +370,7 @@ function renderCards(records) {
   const avgBodyFat = latest.body_fat_pct;
   const compBodyFat = compSummary?.latest?.body_fat_pct;
   $("bodyFat").innerHTML = buildMetricHTML(
-    avgBodyFat, compBodyFat, "%", 1, dateLabel,
+    avgBodyFat, compBodyFat, "%", 1, compDate,
     showComparison && avgBodyFat != null && compBodyFat != null
   );
   $("bodyFat").classList.toggle("metric-value-block", !!showComparison);
@@ -377,7 +378,7 @@ function renderCards(records) {
   const avgEnergy = latest.energy_score ?? summary.avgEnergy;
   const compEnergy = compSummary?.latest?.energy_score ?? compSummary?.avgEnergy;
   $("energyScore").innerHTML = buildMetricHTML(
-    avgEnergy, compEnergy, "/100", 0, dateLabel,
+    avgEnergy, compEnergy, "/100", 0, compDate,
     showComparison && avgEnergy != null && compEnergy != null
   );
   $("energyScore").classList.toggle("metric-value-block", !!showComparison);
@@ -385,7 +386,7 @@ function renderCards(records) {
   const avgStress = summary.avgStress;
   const compStress = compSummary?.avgStress;
   $("avgStress").innerHTML = buildMetricHTML(
-    avgStress, compStress, "/100", 0, dateLabel,
+    avgStress, compStress, "/100", 0, compDate,
     showComparison && avgStress != null && compStress != null
   );
   $("avgStress").classList.toggle("metric-value-block", !!showComparison);
@@ -393,7 +394,7 @@ function renderCards(records) {
   const avgAntiox = latest.antioxidant_index ?? summary.avgAntioxidant;
   const compAntiox = compSummary?.latest?.antioxidant_index ?? compSummary?.avgAntioxidant;
   $("antioxidantIndex").innerHTML = buildMetricHTML(
-    avgAntiox, compAntiox, "/100", 0, dateLabel,
+    avgAntiox, compAntiox, "/100", 0, compDate,
     showComparison && avgAntiox != null && compAntiox != null
   );
   $("antioxidantIndex").classList.toggle("metric-value-block", !!showComparison);
@@ -403,7 +404,7 @@ function renderCards(records) {
   const compSys = compSummary?.latest?.systolic_bp;
   const compDia = compSummary?.latest?.diastolic_bp;
   $("bloodPressure").innerHTML = buildBpMetricHTML(
-    avgSys, avgDia, compSys, compDia, dateLabel,
+    avgSys, avgDia, compSys, compDia, compDate,
     showComparison && avgSys != null && avgDia != null && compSys != null && compDia != null
   );
   $("bloodPressure").classList.toggle("metric-value-block", !!showComparison);
@@ -411,7 +412,7 @@ function renderCards(records) {
   const rangeEcg = latest.ecg && latest.ecg.toLowerCase() !== "normal" ? latest.ecg : "Normal";
   const compEcg = compSummary?.latest?.ecg;
   $("ecgStatus").innerHTML = buildMetricHTML(
-    rangeEcg, compEcg, "", 0, dateLabel,
+    rangeEcg, compEcg, "", 0, compDate,
     showComparison && compEcg,
     true
   );
