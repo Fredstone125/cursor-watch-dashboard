@@ -60,6 +60,18 @@
             All dates
           </button>
         </div>
+        <div class="date-filter-row comparison-row">
+          <div class="date-field">
+            <label for="comparisonDate">Select date for comparison</label>
+            <input type="date" id="comparisonDate" />
+          </div>
+          <button id="clearComparisonBtn" class="secondary-btn small" type="button">
+            Clear comparison
+          </button>
+        </div>
+        <p id="comparisonHint" class="hint comparison-hint hidden">
+          Comparing selected date to the range average. Clear to hide comparison.
+        </p>
         <div id="dataSummary" class="data-summary"></div>
       </section>
 
@@ -186,3 +198,4 @@
     <script src="app.js"></script>
   </body>
   </html>
+
