@@ -31,7 +31,12 @@ const THRESHOLDS = {
 let state = {
   role: "coach",
   athlete: "alex",
+  allRecords: [],
   records: [],
+  dateFilter: {
+    from: null,
+    to: null,
+  },
   charts: {
     heartRate: null,
     sleepStage: null,
@@ -46,6 +51,11 @@ function fmt(value, unit = "", digits = 0) {
   if (value == null || Number.isNaN(value)) return "–";
   const rounded = Number(value.toFixed(digits));
   return unit ? `${rounded} ${unit}` : String(rounded);
+}
+
+function getDatePart(ts) {
+  if (!ts) return null;
+  return ts.split(" ")[0];
 }
 
 function parseCsv(text) {
@@ -110,6 +120,13 @@ function summarize(records) {
   const totalActiveMinutes = sum("active_minutes");
   const totalCalories = sum("calories");
 
+  const dateSet = new Set();
+  records.forEach((r) => {
+    const d = getDatePart(r.timestamp);
+    if (d) dateSet.add(d);
+  });
+  const days = dateSet.size || 1;
+
   const avgHeartRate = count("heart_rate")
     ? sum("heart_rate") / count("heart_rate")
     : null;
@@ -134,12 +151,19 @@ function summarize(records) {
   }, {});
 
   const apneaEvents = sum("sleep_apnea_events");
+  const avgApneaPerNight =
+    apneaEvents != null ? apneaEvents / days : null;
 
   return {
     latest,
     totalSteps,
     totalActiveMinutes,
     totalCalories,
+    days,
+    avgStepsPerDay:
+      totalSteps != null ? totalSteps / days : null,
+    avgActiveMinutesPerDay:
+      totalActiveMinutes != null ? totalActiveMinutes / days : null,
     avgHeartRate,
     avgSpO2,
     avgStress,
@@ -147,6 +171,7 @@ function summarize(records) {
     avgAntioxidant,
     sleepStageCounts,
     apneaEvents,
+    avgApneaPerNight,
   };
 }
 
@@ -158,8 +183,8 @@ function renderSummary(records) {
   }
   const athleteName =
     records[0].athlete_name || (state.athlete === "alex" ? "Alex" : "Jordan");
-  const from = records[0].timestamp;
-  const to = records[records.length - 1].timestamp;
+  const from = getDatePart(records[0].timestamp);
+  const to = getDatePart(records[records.length - 1].timestamp);
   el.textContent = `${athleteName} – ${records.length} samples from ${from} to ${to}. View tailored for ${state.role}.`;
 }
 
@@ -187,9 +212,13 @@ function renderCards(records) {
 
   const { latest } = summary;
 
-  $("stepsTotal").textContent = fmt(summary.totalSteps, "", 0);
+  $("stepsTotal").textContent = fmt(
+    summary.avgStepsPerDay ?? summary.totalSteps,
+    "",
+    0
+  );
   $("activeMinutesTotal").textContent = fmt(
-    summary.totalActiveMinutes,
+    summary.avgActiveMinutesPerDay ?? summary.totalActiveMinutes,
     "min",
     0
   );
@@ -205,7 +234,11 @@ function renderCards(records) {
   const deepPct =
     totalSleep > 0 ? (deepCount / totalSleep) * 100 : null;
   $("deepSleep").textContent = fmt(deepPct, "%", 0);
-  $("apneaEvents").textContent = fmt(summary.apneaEvents, "", 0);
+  $("apneaEvents").textContent = fmt(
+    summary.avgApneaPerNight ?? summary.apneaEvents,
+    "",
+    1
+  );
 
   $("bodyFat").textContent = fmt(latest.body_fat_pct, "%", 1);
   $("energyScore").textContent = fmt(
@@ -579,8 +612,9 @@ async function loadSample(athleteKey) {
     const res = await fetch(path);
     if (!res.ok) throw new Error("Failed to fetch CSV");
     const text = await res.text();
-    state.records = parseCsv(text);
-    renderAll();
+    state.allRecords = parseCsv(text);
+    autoSetDateRange(state.allRecords);
+    applyDateFilter();
   } catch (err) {
     console.error(err);
     $("dataSummary").textContent =
@@ -594,6 +628,54 @@ function renderAll() {
   renderCards(records);
   renderDoctorAlerts(records);
   renderCharts(records);
+}
+
+function autoSetDateRange(records) {
+  const dates = records
+    .map((r) => getDatePart(r.timestamp))
+    .filter(Boolean)
+    .sort();
+
+  if (!dates.length) {
+    state.dateFilter.from = null;
+    state.dateFilter.to = null;
+    if ($("dateFrom")) $("dateFrom").value = "";
+    if ($("dateTo")) $("dateTo").value = "";
+    state.records = [];
+    renderAll();
+    return;
+  }
+
+  const minDate = dates[0];
+  const maxDate = dates[dates.length - 1];
+  state.dateFilter.from = minDate;
+  state.dateFilter.to = maxDate;
+
+  if ($("dateFrom")) $("dateFrom").value = minDate;
+  if ($("dateTo")) $("dateTo").value = maxDate;
+}
+
+function applyDateFilter() {
+  const all = state.allRecords || [];
+  if (!all.length) {
+    state.records = [];
+    renderAll();
+    return;
+  }
+
+  const from = state.dateFilter.from;
+  const to = state.dateFilter.to;
+
+  const filtered = all.filter((r) => {
+    const d = getDatePart(r.timestamp);
+    if (!d) return false;
+    if (from && d < from) return false;
+    if (to && d > to) return false;
+    return true;
+  });
+
+  state.records = filtered.length ? filtered : all;
+  renderAll();
 }
 
 function setupInteractions() {
@@ -627,8 +709,9 @@ function setupInteractions() {
     reader.onload = (ev) => {
       try {
         const text = String(ev.target?.result || "");
-        state.records = parseCsv(text);
-        renderAll();
+        state.allRecords = parseCsv(text);
+        autoSetDateRange(state.allRecords);
+        applyDateFilter();
       } catch (err) {
         console.error(err);
         alert("Unable to parse CSV. Please check column headers.");
@@ -636,10 +719,33 @@ function setupInteractions() {
     };
     reader.readAsText(file);
   });
+  const dateFromInput = $("dateFrom");
+  const dateToInput = $("dateTo");
+  const clearBtn = $("clearDatesBtn");
+
+  if (dateFromInput) {
+    dateFromInput.addEventListener("change", (e) => {
+      state.dateFilter.from = e.target.value || null;
+      applyDateFilter();
+    });
+  }
+
+  if (dateToInput) {
+    dateToInput.addEventListener("change", (e) => {
+      state.dateFilter.to = e.target.value || null;
+      applyDateFilter();
+    });
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      autoSetDateRange(state.allRecords);
+      applyDateFilter();
+    });
+  }
 }
 
 window.addEventListener("DOMContentLoaded", () => {
   setupInteractions();
   loadSample(state.athlete);
 });
-
