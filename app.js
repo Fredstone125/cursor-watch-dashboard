@@ -37,6 +37,7 @@ let state = {
     from: null,
     to: null,
   },
+  comparisonDate: null,
   charts: {
     heartRate: null,
     sleepStage: null,
@@ -56,6 +57,35 @@ function fmt(value, unit = "", digits = 0) {
 function getDatePart(ts) {
   if (!ts) return null;
   return ts.split(" ")[0];
+}
+
+function getTodayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function formatDateLabel(dateStr) {
+  if (!dateStr) return "";
+  if (dateStr === getTodayStr()) return "today";
+  const d = new Date(dateStr + "T12:00:00");
+  const mon = d.toLocaleString("en", { month: "short" });
+  const day = d.getDate();
+  return `${mon} ${day}`;
+}
+
+function getRecordsForDate(records, dateStr) {
+  if (!dateStr || !records.length) return [];
+  return records.filter((r) => getDatePart(r.timestamp) === dateStr);
+}
+
+function formatComparisonDisplay(avg, compVal, unit, digits, dateLabel) {
+  if (avg == null || compVal == null || dateLabel == null) return null;
+  const avgNum = Number(avg);
+  const compNum = Number(compVal);
+  const delta = compNum - avgNum;
+  const deltaStr = delta >= 0 ? `+${delta.toFixed(digits)}` : String(delta.toFixed(digits));
+  const avgStr = unit ? `${avgNum.toFixed(digits)} ${unit}` : String(Math.round(avgNum));
+  const compStr = unit ? `${compNum.toFixed(digits)} ${unit}` : String(Math.round(compNum));
+  return `${avgStr} ${compStr} ${dateLabel} ${deltaStr}`;
 }
 
 function parseCsv(text) {
@@ -211,20 +241,44 @@ function renderCards(records) {
   }
 
   const { latest } = summary;
+  const compDate = state.comparisonDate;
+  const compRecords = compDate ? getRecordsForDate(records, compDate) : [];
+  const compSummary = compRecords.length ? summarize(compRecords) : null;
+  const dateLabel = compDate ? formatDateLabel(compDate) : null;
+  const showComparison = compSummary && dateLabel;
 
-  $("stepsTotal").textContent = fmt(
-    summary.avgStepsPerDay ?? summary.totalSteps,
-    "",
-    0
-  );
-  $("activeMinutesTotal").textContent = fmt(
-    summary.avgActiveMinutesPerDay ?? summary.totalActiveMinutes,
-    "min",
-    0
-  );
+  ["stepsTotal", "activeMinutesTotal", "avgHeartRate", "avgSpO2", "deepSleep",
+    "apneaEvents", "bodyFat", "energyScore", "avgStress", "antioxidantIndex",
+    "bloodPressure", "ecgStatus"
+  ].forEach((id) => {
+    const el = $(id);
+    if (el) el.classList.toggle("comparison-active", !!showComparison);
+  });
 
-  $("avgHeartRate").textContent = fmt(summary.avgHeartRate, "bpm", 0);
-  $("avgSpO2").textContent = fmt(summary.avgSpO2, "%", 1);
+  const avgSteps = summary.avgStepsPerDay ?? summary.totalSteps;
+  const avgActiveMin = summary.avgActiveMinutesPerDay ?? summary.totalActiveMinutes;
+  const compSteps = compSummary?.avgStepsPerDay ?? compSummary?.totalSteps;
+  const compActiveMin = compSummary?.avgActiveMinutesPerDay ?? compSummary?.totalActiveMinutes;
+
+  $("stepsTotal").textContent = showComparison && avgSteps != null && compSteps != null
+    ? formatComparisonDisplay(avgSteps, compSteps, "", 0, dateLabel)
+    : fmt(avgSteps, "", 0);
+
+  $("activeMinutesTotal").textContent = showComparison && avgActiveMin != null && compActiveMin != null
+    ? formatComparisonDisplay(avgActiveMin, compActiveMin, "min", 0, dateLabel)
+    : fmt(avgActiveMin, "min", 0);
+
+  const avgHr = summary.avgHeartRate;
+  const compHr = compSummary?.avgHeartRate;
+  $("avgHeartRate").textContent = showComparison && avgHr != null && compHr != null
+    ? formatComparisonDisplay(avgHr, compHr, "bpm", 0, dateLabel)
+    : fmt(avgHr, "bpm", 0);
+
+  const avgSpO2 = summary.avgSpO2;
+  const compSpO2 = compSummary?.avgSpO2;
+  $("avgSpO2").textContent = showComparison && avgSpO2 != null && compSpO2 != null
+    ? formatComparisonDisplay(avgSpO2, compSpO2, "%", 1, dateLabel)
+    : fmt(avgSpO2, "%", 1);
 
   const deepCount = summary.sleepStageCounts["deep"] || 0;
   const totalSleep = Object.values(summary.sleepStageCounts).reduce(
@@ -233,41 +287,70 @@ function renderCards(records) {
   );
   const deepPct =
     totalSleep > 0 ? (deepCount / totalSleep) * 100 : null;
-  $("deepSleep").textContent = fmt(deepPct, "%", 0);
-  $("apneaEvents").textContent = fmt(
-    summary.avgApneaPerNight ?? summary.apneaEvents,
-    "",
-    1
-  );
-
-  $("bodyFat").textContent = fmt(latest.body_fat_pct, "%", 1);
-  $("energyScore").textContent = fmt(
-    latest.energy_score ?? summary.avgEnergy,
-    "/100",
+  const compDeepCount = compSummary?.sleepStageCounts["deep"] || 0;
+  const compTotalSleep = Object.values(compSummary?.sleepStageCounts || {}).reduce(
+    (a, b) => a + b,
     0
   );
+  const compDeepPct = compTotalSleep > 0 ? (compDeepCount / compTotalSleep) * 100 : null;
 
-  $("avgStress").textContent = fmt(summary.avgStress, "/100", 0);
-  $("antioxidantIndex").textContent = fmt(
-    latest.antioxidant_index ?? summary.avgAntioxidant,
-    "/100",
-    0
-  );
+  $("deepSleep").textContent = showComparison && deepPct != null && compDeepPct != null
+    ? formatComparisonDisplay(deepPct, compDeepPct, "%", 0, dateLabel)
+    : fmt(deepPct, "%", 0);
 
-  if (latest.systolic_bp && latest.diastolic_bp) {
-    $("bloodPressure").textContent = `${fmt(
-      latest.systolic_bp,
-      "",
-      0
-    )} / ${fmt(latest.diastolic_bp, "", 0)} mmHg`;
+  const avgApnea = summary.avgApneaPerNight ?? summary.apneaEvents;
+  const compApnea = compSummary?.avgApneaPerNight ?? compSummary?.apneaEvents;
+  $("apneaEvents").textContent = showComparison && avgApnea != null && compApnea != null
+    ? formatComparisonDisplay(avgApnea, compApnea, "", 1, dateLabel)
+    : fmt(avgApnea, "", 1);
+
+  const avgBodyFat = latest.body_fat_pct;
+  const compBodyFat = compSummary?.latest?.body_fat_pct;
+  $("bodyFat").textContent = showComparison && avgBodyFat != null && compBodyFat != null
+    ? formatComparisonDisplay(avgBodyFat, compBodyFat, "%", 1, dateLabel)
+    : fmt(avgBodyFat, "%", 1);
+
+  const avgEnergy = latest.energy_score ?? summary.avgEnergy;
+  const compEnergy = compSummary?.latest?.energy_score ?? compSummary?.avgEnergy;
+  $("energyScore").textContent = showComparison && avgEnergy != null && compEnergy != null
+    ? formatComparisonDisplay(avgEnergy, compEnergy, "/100", 0, dateLabel)
+    : fmt(avgEnergy, "/100", 0);
+
+  const avgStress = summary.avgStress;
+  const compStress = compSummary?.avgStress;
+  $("avgStress").textContent = showComparison && avgStress != null && compStress != null
+    ? formatComparisonDisplay(avgStress, compStress, "/100", 0, dateLabel)
+    : fmt(avgStress, "/100", 0);
+
+  const avgAntiox = latest.antioxidant_index ?? summary.avgAntioxidant;
+  const compAntiox = compSummary?.latest?.antioxidant_index ?? compSummary?.avgAntioxidant;
+  $("antioxidantIndex").textContent = showComparison && avgAntiox != null && compAntiox != null
+    ? formatComparisonDisplay(avgAntiox, compAntiox, "/100", 0, dateLabel)
+    : fmt(avgAntiox, "/100", 0);
+
+  const avgSys = latest.systolic_bp;
+  const avgDia = latest.diastolic_bp;
+  const compSys = compSummary?.latest?.systolic_bp;
+  const compDia = compSummary?.latest?.diastolic_bp;
+  if (showComparison && avgSys != null && avgDia != null && compSys != null && compDia != null) {
+    const dSys = compSys - avgSys;
+    const dDia = compDia - avgDia;
+    const dSysStr = dSys >= 0 ? `+${dSys}` : String(dSys);
+    const dDiaStr = dDia >= 0 ? `+${dDia}` : String(dDia);
+    $("bloodPressure").textContent =
+      `${avgSys}/${avgDia} ${compSys}/${compDia} ${dateLabel} ${dSysStr}/${dDiaStr} mmHg`;
+  } else if (avgSys != null && avgDia != null) {
+    $("bloodPressure").textContent = `${fmt(avgSys, "", 0)} / ${fmt(avgDia, "", 0)} mmHg`;
   } else {
     $("bloodPressure").textContent = "–";
   }
 
+  const rangeEcg = latest.ecg && latest.ecg.toLowerCase() !== "normal" ? latest.ecg : "Normal";
+  const compEcg = compSummary?.latest?.ecg;
   $("ecgStatus").textContent =
-    latest.ecg && latest.ecg.toLowerCase() !== "normal"
-      ? latest.ecg
-      : "Normal";
+    showComparison && compEcg
+      ? `${rangeEcg} ${compEcg} ${dateLabel}` + (rangeEcg !== compEcg ? " (changed)" : "")
+      : rangeEcg;
 
   renderRoleNotes(summary);
 }
@@ -743,9 +826,33 @@ function setupInteractions() {
       applyDateFilter();
     });
   }
+
+  const comparisonInput = $("comparisonDate");
+  const clearComparisonBtn = $("clearComparisonBtn");
+  const comparisonHint = $("comparisonHint");
+
+  if (comparisonInput) {
+    comparisonInput.addEventListener("change", (e) => {
+      state.comparisonDate = e.target.value || null;
+      if (comparisonHint) {
+        comparisonHint.classList.toggle("hidden", !state.comparisonDate);
+      }
+      renderAll();
+    });
+  }
+
+  if (clearComparisonBtn) {
+    clearComparisonBtn.addEventListener("click", () => {
+      state.comparisonDate = null;
+      if ($("comparisonDate")) $("comparisonDate").value = "";
+      if (comparisonHint) comparisonHint.classList.add("hidden");
+      renderAll();
+    });
+  }
 }
 
 window.addEventListener("DOMContentLoaded", () => {
   setupInteractions();
   loadSample(state.athlete);
 });
+
