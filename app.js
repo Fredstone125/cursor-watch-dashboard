@@ -589,10 +589,11 @@ function buildDoctorAlerts(records) {
     });
   }
 
-  if (summary.apneaEvents > THRESHOLDS.apneaEventsHigh) {
+  const avgApnea = summary.avgApneaPerNight ?? summary.apneaEvents;
+  if (avgApnea != null && avgApnea > THRESHOLDS.apneaEventsHigh) {
     alerts.push({
       severity: "medium",
-      text: `Sleep apnea events per night: ${summary.apneaEvents} – above threshold; consider sleep clinic discussion.`,
+      text: `Sleep apnea events per night: ${avgApnea.toFixed(1)} – above threshold; consider sleep clinic discussion.`,
     });
   }
 
