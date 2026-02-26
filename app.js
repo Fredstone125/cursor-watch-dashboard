@@ -772,10 +772,50 @@ async function loadSample(athleteKey) {
   }
 }
 
+function renderMenstrualSection(records) {
+  const card = $("menstrualCard");
+  if (!card) return;
+
+  const menstrualRecords = records.filter(
+    (r) => r.menstrual_phase && r.menstrual_phase.trim().length > 0
+  );
+
+  if (!menstrualRecords.length) {
+    card.classList.add("hidden");
+    return;
+  }
+
+  card.classList.remove("hidden");
+
+  const latestWithPhase = [...menstrualRecords].reverse()[0];
+  $("menstrualPhase").textContent =
+    latestWithPhase.menstrual_phase || "–";
+
+  $("menstrualCount").textContent = menstrualRecords.length;
+
+  const noteEl = $("menstrualNote");
+  noteEl.textContent = "";
+
+  if (state.role === "doctor") {
+    noteEl.textContent =
+      "Use cycle data to personalize load, monitor symptom burden, and screen for RED-S risk.";
+  } else if (state.role === "trainer") {
+    noteEl.textContent =
+      "Adjust intensity and volume based on reported phase and symptoms.";
+  } else if (state.role === "coach") {
+    noteEl.textContent =
+      "Coordinate with medical staff for individualized training decisions.";
+  } else if (state.role === "athlete") {
+    noteEl.textContent =
+      "Track symptoms and communicate any performance changes.";
+  }
+}
+
 function renderAll() {
   const { records } = state;
   renderSummary(records);
   renderCards(records);
+  renderMenstrualSection(records);
   renderDoctorAlerts(records);
   renderCharts(records);
 }
